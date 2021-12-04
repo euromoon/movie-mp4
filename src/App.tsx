@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import React from 'react';
 import { randomBytes } from 'crypto';
 import { ProgressBar } from './components/ProgressBar';
 import { Collecting } from './components/Collecting';
@@ -9,59 +10,67 @@ import { Trackers } from './Trackers';
 import { SearchResults } from './components/SearchResults';
 import Helmet from 'react-helmet';
 import axios from 'axios';
-import React from 'react';
 import WebTorrent from 'webtorrent';
 import './App.css';
 
-function App(): JSX.Element
-{  
+function App(): JSX.Element {
   let client = new WebTorrent();
   let [torrentFiles, setTorrentFiles] = useState(new Array<JSX.Element>());
   let [queryTerm, setQueryTerm] = useState('');
   let [progress, setProgress] = useState('0');
   let [downloadSpeed, setDownloadSpeed] = useState('0');
-  let [collectingMetadata, setCollectingMetadata] = useState(false);
+  let [collectingMetadata, setCollectingMetadata] = useState({ isCollecting: false, currentFile: 0, totalFiles: 0 });
   let [fileSize, setFileSize] = useState('0');
-  let [results, setResults] = useState(new Array<{title: string, hash: string, peers: number}>());
+  let [results, setResults] = useState(new Array<{ title: string, hashes: string }>());
+  let [placeholder, setPlaceholder] = useState('');
   let progressBar = <ProgressBar progress={progress} downloadSpeed={downloadSpeed} fileSize={fileSize} />;
-  let resultsElement = <SearchResults results={results} onSelected={startDownloadingTorrent} />; 
+  let resultsElement = <SearchResults results={results} onSelected={startDownloadingTorrent} placeholder={placeholder} />;
 
-  function onTypedSearch(): void
-  {
+  function onTypedSearch(): void {
     axios.get(`https://yts.mx/api/v2/list_movies.json?query_term=${queryTerm}`)
       .then(response => {
-        let newResults = new Array<{title: string, hash: string, peers: number}>();
+        if (response.data.data.movie_count === 0)
+        {
+          setPlaceholder('No results found');
+          return;
+        }
+        setPlaceholder('Select an option');
+        let newResults = new Array<{ title: string, hashes: string }>();
         response.data.data.movies.forEach((movie: any): void => {
-          console.log(movie);
-          let desiredTorrent = movie.torrents.sort((a: any, b: any): number => { return b.peers - a.peers; })[0];
-          newResults.push({title: movie.title_long, hash: desiredTorrent.hash, peers: desiredTorrent.peers});
+          let hashes = movie.torrents
+            .sort(({ seedsA }: { seedsA: number }, { seedsB }: { seedsB: number}): number => { return seedsB - seedsA; })
+            .map(({ hash }: { hash: string }) => hash).join('+');
+          newResults.push({ title: movie.title_long, hashes });
         });
         setResults(newResults);
       }).catch(console.log);
   }
 
-  function HashToMagnet(hash: string): string
-  {
-    let magnet = `magnet:?xt=urn:btih:${hash}`;
-    Trackers.forEach(tracker => {
-      magnet += `&tr=${tracker}`;
-    });
-    return magnet;
-  }
-
-  function startDownloadingTorrent(hash: string): void
-  {
-    let torrent = client.add(HashToMagnet(hash));
-    console.log(torrent);
+  function startDownloadingTorrent(hashes: string): void {
+    let hashArray = hashes.split('+');
+    let timeoutID = setTimeout(() => {
+      client.remove(hashArray[0]);
+      hashArray.shift();
+      if (hashArray.length > 0) {
+        startDownloadingTorrent(hashArray.join('+'));
+        return;
+      }
+      alert('Sorry, but the download failed for the desired movie');
+    }, 60 * 1000);
+    let torrent = client.add(hashArray[0], { announce: Trackers, maxWebConns: -1 });
     torrent.on('infoHash', () => {
-      setCollectingMetadata(true);
+      console.log(collectingMetadata);
+      let totalFiles = collectingMetadata.totalFiles === 0 ? hashArray.length : collectingMetadata.totalFiles;
+      let currentFile = collectingMetadata.currentFile + 1;
+      setCollectingMetadata({ isCollecting: true, currentFile, totalFiles });
     });
     torrent.on('ready', () => {
-      setCollectingMetadata(false);
+      console.log('Ready!');
+      clearTimeout(timeoutID);
+      setCollectingMetadata({ isCollecting: false, currentFile: 0, totalFiles: 0 });
       let mp4Files = torrent.files.filter(file => file.name.endsWith('.mp4'));
-      if (mp4Files.length === 0)
-      {
-        alert('No MP4 files were found in torrent');
+      if (mp4Files.length === 0) {
+        alert('No MP4 files were found for the desired movie');
         torrent.destroy();
         return;
       }
@@ -81,8 +90,7 @@ function App(): JSX.Element
       torrent.files.filter(file => file.name.endsWith('.mp4')).forEach(file => {
         file.getBlobURL((err, url) => {
           if (err) throw err;
-          if (url)
-          {
+          if (url) {
             let a = document.createElement('a');
             a.download = file.name;
             a.href = url;
@@ -100,15 +108,15 @@ function App(): JSX.Element
       <Helmet title="movie-mp4" />
       <MovieMP4Logo />
       <div className="SearchBox">
-        <input type="text" value={queryTerm} onChange={ (event) => setQueryTerm(event.target.value) } />
-        <button onClick={onTypedSearch}>Buscar</button>
+        <input type="text" value={queryTerm} onChange={(event) => setQueryTerm(event.target.value)} />
+        <button onClick={onTypedSearch}>Search</button>
       </div>
-      { resultsElement }
-      <Collecting isActive={ collectingMetadata } />
+      {resultsElement}
+      <Collecting isActive={collectingMetadata.isCollecting} currentFile={collectingMetadata.currentFile} totalFiles={collectingMetadata.totalFiles} />
       <div className="TorrentFiles" >
-        { torrentFiles }
+        {torrentFiles}
       </div>
-      { progressBar }
+      {progressBar}
     </div>
   );
 }

@@ -1,0 +1,13 @@
+* {
+    margin: .1em;
+}
+
+h1 {
+    font-size: medium;
+    font-weight: normal;
+}
+
+p {
+    font-size: small;
+    font-weight: lighter;
+}
