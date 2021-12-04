@@ -13,7 +13,7 @@ import React from 'react';
 import WebTorrent from 'webtorrent';
 import './App.css';
 
-function App()
+function App(): JSX.Element
 {  
   let client = new WebTorrent();
   let [torrentFiles, setTorrentFiles] = useState(new Array<JSX.Element>());
@@ -31,9 +31,9 @@ function App()
     axios.get(`https://yts.mx/api/v2/list_movies.json?query_term=${queryTerm}`)
       .then(response => {
         let newResults = new Array<{title: string, hash: string, peers: number}>();
-        response.data.data.movies.forEach((movie: any) => {
+        response.data.data.movies.forEach((movie: any): void => {
           console.log(movie);
-          let desiredTorrent = movie.torrents.sort((a: any, b: any) => { return b.peers - a.peers; })[0];
+          let desiredTorrent = movie.torrents.sort((a: any, b: any): number => { return b.peers - a.peers; })[0];
           newResults.push({title: movie.title_long, hash: desiredTorrent.hash, peers: desiredTorrent.peers});
         });
         setResults(newResults);

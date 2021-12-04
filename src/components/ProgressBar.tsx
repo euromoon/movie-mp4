@@ -1,7 +1,7 @@
 import React, { CSSProperties } from 'react';
 import './ProgressBar.css';
 
-function ProgressBar(props: { progress: string, downloadSpeed: string, fileSize: string }) {
+function ProgressBar(props: { progress: string, downloadSpeed: string, fileSize: string }): JSX.Element {
   let foregroundStyle: CSSProperties = 
   {
     top: '0',

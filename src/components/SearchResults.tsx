@@ -3,7 +3,7 @@ import { randomBytes } from 'crypto';
 import { SearchResult } from './SearchResult';
 import './SearchResults.css';
 
-function SearchResults(props: { results: { title: string, hash: string, peers: number }[], onSelected: (hash: string) => void })
+function SearchResults(props: { results: { title: string, hash: string, peers: number }[], onSelected: (hash: string) => void }): JSX.Element
 {
   return (
     <select onChange={ (event) => props.onSelected(event.target.value) }>
